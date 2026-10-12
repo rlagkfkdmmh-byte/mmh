@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEON BEAT - Song Select Lobby</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Orbitron', sans-serif;
+            background: #09090e;
+            color: #ffffff;
+            overflow: hidden;
+            user-select: none;
+        }
+        .orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .neon-box {
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.15);
+            border: 1px solid rgba(0, 255, 204, 0.3);
+        }
+        .neon-box-active {
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.5);
+            border-color: #00ffcc;
+        }
+        .neon-text {
+            text-shadow: 0 0 10px rgba(0, 255, 204, 0.6), 0 0 20px rgba(0, 255, 204, 0.3);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 204, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 204, 0.6);
+        }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col justify-between p-6 relative">
+
+    <div id="lobbyScreen" class="w-full h-full flex flex-col justify-between absolute inset-0 p-6 z-10 bg-[#09090e]">
+        <div class="absolute -top-32 -left-32 w-96 h-96 bg-cyan-600/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-fuchsia-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <header class="w-full flex justify-between items-center z-10 bg-black/40 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/10">
+            <div class="flex items-center space-x-3">
+                <div class="w-4 h-4 bg-cyan-400 rounded-full animate-ping"></div>
+                <h1 class="orbitron text-2xl font-black tracking-widest text-cyan-400 neon-text">NEON BEAT</h1>
+            </div>
+            <div class="flex items-center space-x-6 text-sm">
+                <div class="bg-white/5 px-4 py-2 rounded-xl border border-white/10">
+                    <span class="text-gray-400">PLAYER:</span> <span class="font-bold text-cyan-300 orbitron">RHYTHMER</span>
+                </div>
+                <div class="bg-white/5 px-4 py-2 rounded-xl border border-white/10">
+                    <span class="text-gray-400">COIN:</span> <span class="font-bold text-yellow-400 orbitron">9,999</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 flex gap-6 my-6 z-10 overflow-hidden">
+            <section class="w-7/12 flex flex-col bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 shadow-2xl overflow-hidden">
+                <div class="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                    <h2 class="orbitron text-lg font-bold tracking-wider text-gray-200">SONG CATALOG</h2>
+                    <span class="text-xs text-gray-400 orbitron">TOTAL SONGS: <span id="totalSongsCount">0</span></span>
+                </div>
+                <div id="songListContainer" class="flex-1 overflow-y-auto space-y-3 pr-2">
+                    <!-- Song list items dynamically injected -->
+                </div>
+            </section>
+
+            <section class="w-5/12 flex flex-col justify-between bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 shadow-2xl relative overflow-hidden">
+                <div id="detailBackground" class="absolute inset-0 bg-cover bg-center opacity-15 filter blur-sm transition-all duration-500 pointer-events-none"></div>
+
+                <div class="relative z-10 flex flex-col items-center text-center">
+                    <div id="detailJacket" class="w-44 h-44 rounded-2xl bg-cyan-900/40 bg-cover bg-center mb-5 neon-box transition-all duration-300"></div>
+                    <h3 id="detailTitle" class="orbitron text-2xl font-black text-white mb-1 tracking-wide">SONG TITLE</h3>
+                    <p id="detailArtist" class="text-sm text-cyan-400 font-semibold mb-3">Artist Name</p>
+                    <div class="flex items-center gap-3 text-xs font-mono bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
+                        <span>BPM: <b id="detailBpm" class="text-yellow-400">140</b></span>
+                        <span>•</span>
+                        <span>GENRE: <b id="detailGenre" class="text-cyan-300">CYBERPUNK</b></span>
+                    </div>
+                </div>
+
+                <div class="relative z-10 space-y-6">
+                    <div class="bg-white/5 p-4 rounded-xl border border-white/10 text-center">
+                        <span class="text-xs text-gray-400 orbitron block mb-1">TARGET FILE LINK</span>
+                        <span id="detailLinkFile" class="text-sm font-mono text-cyan-300 font-bold">music1.html</span>
+                    </div>
+
+                    <button onclick="startGame()" class="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-black orbitron text-lg tracking-wider rounded-xl shadow-[0_0_25px_rgba(0,255,204,0.4)] transition-all transform active:scale-95 cursor-pointer">
+                        GAME START
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="w-full text-center z-10 text-xs text-gray-500 orbitron">
+            TIP: Use <kbd class="bg-white/10 px-2 py-1 rounded text-gray-300">UP</kbd> / <kbd class="bg-white/10 px-2 py-1 rounded text-gray-300">DOWN</kbd> to navigate, <kbd class="bg-white/10 px-2 py-1 rounded text-gray-300">ENTER</kbd> to start.
+        </footer>
+    </div>
+
+    <script>
+        // Songs array with Reze.jpg for music1 and local files
+        const songs = [
+            {
+                id: 1,
+                title: "IRIS OUT",
+                artist: "Visual & Sound Lab",
+                bpm: 165,
+                genre: "SOUNDTRACK",
+                jacket: "Reze.jpg",
+                targetFile: "music1.html"
+            },
+            {
+                id: 2,
+                title: "NEON RUNNER",
+                artist: "CyberVoid",
+                bpm: 145,
+                genre: "CYBERPUNK",
+                jacket: "2.png",
+                targetFile: "music2.html"
+            },
+            {
+                id: 3,
+                title: "HYPER SPEED",
+                artist: "QuantumBeat",
+                bpm: 185,
+                genre: "SPEEDCORE",
+                jacket: "3.png",
+                targetFile: "music3.html"
+            },
+            {
+                id: 4,
+                title: "DIGITAL MEMORY",
+                artist: "NeoTokyo 2099",
+                bpm: 130,
+                genre: "CHIPWAVE",
+                jacket: "4.png",
+                targetFile: "music4.html"
+            }
+        ];
+
+        let selectedIndex = 0;
+
+        function playSfx(type) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'move') {
+                    osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.05);
+                    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.05);
+                } else if (type === 'select') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.25);
+                }
+            } catch(e) {}
+        }
+
+        function renderSongList() {
+            const container = document.getElementById('songListContainer');
+            container.innerHTML = '';
+            document.getElementById('totalSongsCount').innerText = songs.length;
+
+            songs.forEach((song, idx) => {
+                const isSelected = idx === selectedIndex;
+                const item = document.createElement('div');
+                item.className = `flex items-center p-3.5 rounded-xl cursor-pointer transition-all border ${
+                    isSelected 
+                        ? 'bg-cyan-500/20 border-cyan-400 neon-box-active translate-x-1' 
+                        : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'
+                }`;
+                item.onclick = () => {
+                    selectedIndex = idx;
+                    playSfx('move');
+                    updateUI();
+                };
+
+                item.innerHTML = `
+                    <div class="w-12 h-12 rounded-lg bg-cover bg-center mr-4 flex-shrink-0 border border-white/20 bg-cyan-950" style="background-image: url('${song.jacket}')"></div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="orbitron font-bold text-sm truncate ${isSelected ? 'text-cyan-300' : 'text-white'}">${song.title}</h4>
+                        <p class="text-xs text-gray-400 truncate">${song.artist}</p>
+                    </div>
+                    <div class="text-right ml-4">
+                        <span class="text-xs font-mono font-bold text-yellow-400 block">BPM ${song.bpm}</span>
+                        <span class="text-[10px] text-gray-500 font-mono">${song.genre}</span>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function updateDetailPanel() {
+            const song = songs[selectedIndex];
+            document.getElementById('detailTitle').innerText = song.title;
+            document.getElementById('detailArtist').innerText = song.artist;
+            document.getElementById('detailBpm').innerText = song.bpm;
+            document.getElementById('detailGenre').innerText = song.genre;
+            document.getElementById('detailLinkFile').innerText = song.targetFile;
+            document.getElementById('detailJacket').style.backgroundImage = `url('${song.jacket}')`;
+            document.getElementById('detailBackground').style.backgroundImage = `url('${song.jacket}')`;
+        }
+
+        function updateUI() {
+            renderSongList();
+            updateDetailPanel();
+        }
+
+        function startGame() {
+            playSfx('select');
+            const song = songs[selectedIndex];
+            
+            setTimeout(() => {
+                window.location.href = song.targetFile;
+            }, 300);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                selectedIndex = (selectedIndex - 1 + songs.length) % songs.length;
+                playSfx('move');
+                updateUI();
+                e.preventDefault();
+            } else if (e.key === 'ArrowDown') {
+                selectedIndex = (selectedIndex + 1) % songs.length;
+                playSfx('move');
+                updateUI();
+                e.preventDefault();
+            } else if (e.key === 'Enter') {
+                startGame();
+                e.preventDefault();
+            }
+        });
+
+        window.onload = function() {
+            updateUI();
+        };
+    </script>
+</body>
+</html>

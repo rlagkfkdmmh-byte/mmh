@@ -1,0 +1,5307 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Rhythm Game - I Really Want to Stay at Your House</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050510;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .neon-text {
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        .neon-text-pink {
+            text-shadow: 0 0 10px rgba(255, 0, 255, 0.8), 0 0 20px rgba(255, 0, 255, 0.5);
+        }
+
+        #bg-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1; 
+            opacity: 0.55;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 3;
+        }
+
+        #lobby-screen, #pause-screen, #editor-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 5, 16, 0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        #pause-screen, #editor-screen {
+            display: none;
+            background: rgba(5, 5, 16, 0.88);
+            backdrop-filter: blur(8px);
+        }
+
+        .btn-glowing {
+            background: transparent;
+            border: 2px solid #00ffff;
+            color: #00ffff;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.4) inset, 0 0 15px rgba(0, 255, 255, 0.4);
+        }
+
+        .btn-glowing:hover {
+            background: #00ffff;
+            color: #000;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.8) inset, 0 0 25px rgba(0, 255, 255, 0.8);
+        }
+
+        #judgement-display {
+            position: absolute;
+            top: 38%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: 900;
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        .perfect { color: #00ffff; text-shadow: 0 0 20px #00ffff; }
+        .great { color: #00ff00; text-shadow: 0 0 20px #00ff00; }
+        .good { color: #ffaa00; text-shadow: 0 0 20px #ffaa00; }
+        .miss { color: #ff0044; text-shadow: 0 0 20px #ff0044; }
+
+        #combo-display {
+            position: absolute;
+            top: 48%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: white;
+            text-shadow: 0 0 15px #fff;
+            opacity: 0;
+        }
+
+        #health-bar-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 350px;
+            height: 18px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #555;
+            border-radius: 9px;
+            overflow: hidden;
+            z-index: 5;
+        }
+        
+        #health-bar {
+            width: 100%;
+            height: 100%;
+            background: #00ff00;
+            transition: width 0.15s ease, background-color 0.2s ease;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        #notification-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 255, 255, 0.2);
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <video id="bg-video" src="I Really Want to Stay at Your House.mp4" playsinline preload="auto"></video>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer" class="p-6">
+        <div id="health-bar-container">
+            <div id="health-bar"></div>
+        </div>
+
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center w-full max-w-4xl mx-auto gap-4 mt-6">
+            <div class="bg-black/70 p-4 rounded-xl border border-gray-700 text-sm font-mono font-bold space-y-1 w-full md:w-auto shadow-lg pointer-events-auto">
+                <div class="text-cyan-300">PERFECT: <span id="stat-perfect">0</span></div>
+                <div class="text-green-400">GREAT: <span id="stat-great">0</span></div>
+                <div class="text-orange-400">GOOD: <span id="stat-good">0</span></div>
+                <div class="text-red-500 mt-2 border-t border-gray-600 pt-1">MISS: <span id="stat-miss">0</span></div>
+            </div>
+            <div class="text-left md:text-right w-full md:w-auto bg-black/50 p-3 rounded-xl backdrop-blur-sm">
+                <div class="text-xl font-bold text-gray-200" id="ui-song-title">Song: I Really Want to Stay at Your House</div>
+                <div class="text-md text-cyan-300 font-mono mt-1 mb-1" id="time-display">남은 시간: 00:00 / 전체: 00:00</div>
+                <div class="text-sm text-gray-400">Keys: D, F, J, K (ESC: 일시정지 및 메뉴)</div>
+            </div>
+        </div>
+        
+        <div id="judgement-display">PERFECT</div>
+        <div id="combo-display">0</div>
+    </div>
+
+    <div id="lobby-screen">
+        <h1 class="text-6xl font-black mb-2 neon-text tracking-widest">RHYTHM ARCADE</h1>
+        <p class="text-xl mb-8 text-gray-400">플레이할 곡을 선택하세요</p>
+        
+        <div class="flex flex-col gap-4 w-full max-w-md items-center mb-10">
+            <div id="song-card" class="bg-black/60 border-2 border-cyan-400/80 rounded-2xl p-5 w-full text-center shadow-[0_0_20px_rgba(0,255,255,0.3)] cursor-pointer transition-all hover:scale-105">
+                <div class="text-2xl font-bold text-cyan-300 mb-1" id="lobby-song-title">I Really Want to Stay at Your House</div>
+                <div class="text-sm text-gray-300">Rosa Walton & Hallie Coggins (Cyberpunk)</div>
+                <div class="text-xs text-cyan-400 mt-2 font-mono">Difficulty: EXPERT+</div>
+            </div>
+        </div>
+
+        <div class="flex gap-4">
+            <button id="start-btn" class="btn-glowing">GAME START</button>
+        </div>
+    </div>
+
+    <div id="pause-screen">
+        <h1 class="text-5xl font-black mb-6 neon-text tracking-widest">GAME PAUSED</h1>
+        
+        <div class="bg-black/80 border border-cyan-400/50 p-6 rounded-2xl mb-6 w-80 text-center shadow-[0_0_20px_rgba(0,255,255,0.2)]">
+            <div class="text-lg font-bold text-cyan-300 mb-3">음량 조절 (Volume)</div>
+            <div class="flex items-center justify-center gap-3">
+                <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="w-48 accent-cyan-400 cursor-pointer">
+                <span id="volume-text" class="text-sm font-mono text-cyan-300 w-12">100%</span>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-4 w-64">
+            <button id="resume-btn" class="btn-glowing">RESUME</button>
+            <button id="quit-btn" class="bg-transparent border-2 border-red-500 text-red-500 py-3 text-lg font-bold rounded-full hover:bg-red-500 hover:text-white transition-all shadow-[0_0_15px_rgba(255,0,68,0.4)]">SONG SELECT (로비로)</button>
+        </div>
+
+        <button id="open-editor-btn" class="absolute bottom-6 right-6 bg-purple-900/90 border border-purple-400 text-purple-200 px-4 py-2.5 rounded-xl text-xs font-mono shadow-[0_0_15px_rgba(168,85,247,0.6)] hover:bg-purple-700 transition-all">
+            🔴 실시간 타일 녹화기 (Editor)
+        </button>
+    </div>
+
+    <div id="editor-screen">
+        <div class="w-full max-w-xl bg-black/95 border-2 border-purple-500 p-6 rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.5)] flex flex-col gap-3">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+                <h2 class="text-2xl font-black text-purple-300">🔴 실시간 타일 녹화 에디터 & 추출</h2>
+                <button id="close-editor-btn" class="text-gray-400 hover:text-white text-xl font-bold px-3 py-1">✕</button>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed">
+                [녹화 시작] 후 노래에 맞춰 <b>D, F, J, K</b>를 누르면 타일이 기록됩니다.
+            </p>
+
+            <div class="bg-gray-900/90 p-3 rounded-xl border border-gray-800 flex flex-col gap-2 text-center">
+                <div class="text-sm font-mono text-cyan-300" id="recorder-status">상태: 대기 중 (Ready)</div>
+                <div class="text-2xl font-black font-mono text-yellow-400" id="recorder-time">00:00.00</div>
+                <div class="flex justify-center gap-3">
+                    <button id="start-record-btn" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-5 rounded-xl shadow-[0_0_15px_rgba(255,0,0,0.6)] transition-all">
+                        ⏺️ 녹화 시작
+                    </button>
+                    <button id="stop-record-btn" class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2 px-5 rounded-xl shadow-[0_0_15px_rgba(255,255,0,0.6)] transition-all" style="display:none;">
+                        ⏹️ 녹화 완료
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <div class="flex justify-between items-center text-xs font-mono text-gray-300">
+                    <span>타일 데이터 (JSON Export / Import)</span>
+                    <span>개수: <span id="editor-note-count" class="text-cyan-400 font-bold">0</span>개</span>
+                </div>
+                <textarea id="beatmap-json-textarea" rows="4" class="w-full bg-black border border-gray-700 rounded-lg p-2 text-xs font-mono text-cyan-300 focus:outline-none focus:border-purple-500" placeholder="여기에 녹화된 JSON 데이터가 표시되거나 붙여넣을 수 있습니다."></textarea>
+                <div class="flex gap-2 justify-end">
+                    <button id="copy-json-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold">클립보드 복사</button>
+                    <button id="import-json-btn" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold">JSON 불러오기 적용</button>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center bg-black/70 p-2.5 rounded-xl border border-gray-800 font-mono text-sm mt-1">
+                <div class="flex gap-2">
+                    <button id="save-beatmap-btn" class="bg-green-600 hover:bg-green-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-[0_0_10px_rgba(0,255,0,0.4)]">게임에 적용하기</button>
+                    <button id="reset-beatmap-btn" class="bg-red-600/80 hover:bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold">기본 악보로 초기화</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification-toast">알림 메시지</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const video = document.getElementById('bg-video');
+        const lobbyScreen = document.getElementById('lobby-screen');
+        const pauseScreen = document.getElementById('pause-screen');
+        const editorScreen = document.getElementById('editor-screen');
+        const startBtn = document.getElementById('start-btn');
+        const resumeBtn = document.getElementById('resume-btn');
+        const quitBtn = document.getElementById('quit-btn');
+        const volumeSlider = document.getElementById('volume-slider');
+        const volumeText = document.getElementById('volume-text');
+
+        const openEditorBtn = document.getElementById('open-editor-btn');
+        const closeEditorBtn = document.getElementById('close-editor-btn');
+        const startRecordBtn = document.getElementById('start-record-btn');
+        const stopRecordBtn = document.getElementById('stop-record-btn');
+        const saveBeatmapBtn = document.getElementById('save-beatmap-btn');
+        const resetBeatmapBtn = document.getElementById('reset-beatmap-btn');
+        const editorNoteCount = document.getElementById('editor-note-count');
+        const recorderStatus = document.getElementById('recorder-status');
+        const recorderTime = document.getElementById('recorder-time');
+        const beatmapJsonTextarea = document.getElementById('beatmap-json-textarea');
+        const copyJsonBtn = document.getElementById('copy-json-btn');
+        const importJsonBtn = document.getElementById('import-json-btn');
+        const notificationToast = document.getElementById('notification-toast');
+        
+        const statEls = {
+            perfect: document.getElementById('stat-perfect'),
+            great: document.getElementById('stat-great'),
+            good: document.getElementById('stat-good'),
+            miss: document.getElementById('stat-miss')
+        };
+
+        const judgeText = document.getElementById('judgement-display');
+        const comboText = document.getElementById('combo-display');
+        const timeDisplay = document.getElementById('time-display');
+        const healthBar = document.getElementById('health-bar');
+
+        let isPlaying = false;
+        let isPaused = false;
+        let isRecording = false;
+        let recordedNotes = [];
+
+        let stats = { perfect: 0, great: 0, good: 0, miss: 0 };
+        let combo = 0;
+        
+        const maxHealth = 100;
+        let currentHealth = 100;
+
+        const keys = ['KeyD', 'KeyF', 'KeyJ', 'KeyK'];
+        const laneColors = ['#d8b4fe', '#fde047', '#fde047', '#d8b4fe']; // 연보라색과 노란색 적용
+        const keyState = [false, false, false, false];
+        
+        const noteSpeed = 0.52; 
+        const hitWindowPerfect = 0.075; 
+        const hitWindowGreat = 0.15; 
+        const hitWindowMiss = 0.25; 
+
+        const topY = 180; 
+        let topWidth = 140; 
+        let bottomWidth = 750; 
+        let bottomY = 0; 
+
+        // Empty default map so you can record your own for "I Really Want to Stay at Your House"
+        const defaultCustomBeatmap = [
+  {
+    "time": 1.41,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 1.58,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 1.82,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 2.03,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 2.28,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 2.55,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 2.72,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 2.96,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 3.16,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 3.46,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 3.7,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 3.93,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 4.17,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 7.85,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 9,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 9.26,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 9.51,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 9.72,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 9.94,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 10.22,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 10.41,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 10.7,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 10.91,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 11.13,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 11.4,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 11.58,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 15.55,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 16.77,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 16.95,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 17.15,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 17.38,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 17.62,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 17.88,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 18.11,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 18.34,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 18.57,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 18.8,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 19.05,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 19.29,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 20.06,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 20.34,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 21.04,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 21.28,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 21.93,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 22.17,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 23.14,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 23.38,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 23.63,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 23.88,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 24.4,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 24.64,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 24.89,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 25.1,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 25.34,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 25.58,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 25.81,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 26.06,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 30.33,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 30.78,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 31.26,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 31.49,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 31.75,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 32.24,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 32.46,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 32.92,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 33.16,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 33.4,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 33.66,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 33.86,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 34.12,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 34.38,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 34.59,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 34.84,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 35.09,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 35.31,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 35.56,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 36.07,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 36.33,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 36.82,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 37,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 37.25,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 37.48,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 37.96,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 38.47,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 38.71,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 38.95,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 39.17,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 39.42,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 39.65,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 39.89,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 40.11,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 40.36,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 40.64,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 40.85,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 41.11,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 41.34,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 41.86,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 42.06,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 42.29,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 42.54,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 42.79,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 43.03,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 43.28,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 43.52,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 43.75,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 44.01,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 44.25,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 44.51,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 44.71,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 44.93,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 45.18,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 45.66,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 46.12,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 46.14,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 46.65,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 46.9,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 47.13,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 47.56,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 47.79,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 48.08,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 48.28,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 48.56,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 48.79,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 49.03,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 49.2,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 49.44,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 49.76,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 49.95,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 50.23,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 50.46,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 50.67,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 51.18,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 51.39,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 51.63,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 51.83,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 52.1,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 52.36,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 52.62,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 52.87,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 53.04,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 53.36,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 53.57,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 53.84,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 54.11,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 54.34,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 54.52,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 54.77,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 55,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 55.3,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 55.5,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 55.77,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 56.53,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 56.74,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 57.73,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 57.95,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 58.2,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 58.42,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 58.67,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 58.89,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 59.14,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 59.37,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 59.62,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 59.85,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 60.08,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 60.26,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 60.53,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 60.83,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 61.06,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 61.28,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 61.47,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 61.7,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 61.91,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 62.75,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 62.92,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 63.16,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 63.41,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 63.64,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 63.89,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 64.16,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 64.38,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 64.57,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 64.83,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 65.06,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 65.32,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 65.59,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 65.8,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 66.31,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 66.57,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 66.8,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 67.05,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 67.28,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 67.76,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 68.23,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 68.48,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 68.74,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 68.94,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 69.19,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 69.46,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 69.65,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 69.88,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 70.1,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 70.32,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 70.58,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 70.85,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 71.11,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 71.36,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 71.57,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 71.87,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 72.08,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 72.33,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 72.58,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 72.83,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 73.35,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 73.52,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 74,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 74.28,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 74.48,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 74.7,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 74.96,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 75.45,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 75.68,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 75.9,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 76.12,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 76.4,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 76.67,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 76.88,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 77.42,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 78.21,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 78.77,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 79.46,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 79.69,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 80.1,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 80.43,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 80.65,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 81.37,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 81.62,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 82.15,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 82.57,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 83.1,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 83.33,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 83.58,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 83.78,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 84.03,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 84.24,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 84.51,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 84.72,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 85.01,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 85.45,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 85.97,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 86.21,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 86.7,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 86.9,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 87.44,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 87.68,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 87.92,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 88.18,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 88.67,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 88.88,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 89.37,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 89.59,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 89.83,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 90.03,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 90.25,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 90.5,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 90.74,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 91.7,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 92.16,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 93.09,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 93.28,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 94.07,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 96.08,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 98.97,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 100.02,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 100.24,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 100.46,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 100.66,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 100.9,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 101.11,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 101.33,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 101.58,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 101.83,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 102.06,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 102.35,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 102.57,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 102.82,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 103.04,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 103.28,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 103.49,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 103.73,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 103.98,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 104.22,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 104.45,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 104.71,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 104.95,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 105.18,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 105.45,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 105.67,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 105.91,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 106.12,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 106.38,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 106.61,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 106.86,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 107.05,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 107.34,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 107.55,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 107.79,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 108.03,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 108.29,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 108.55,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 108.77,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 109.03,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 109.27,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 109.44,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 109.72,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 109.93,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 110.21,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 110.46,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 110.66,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 110.88,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 111.14,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 111.38,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 111.59,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 111.86,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 112.1,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 112.34,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 112.56,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 112.86,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 113.42,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 113.87,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 114.31,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 114.58,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 114.78,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 115.01,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 115.24,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 115.49,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 115.72,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 115.95,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 116.21,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 116.47,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 116.68,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 116.89,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 117.15,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 117.38,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 117.66,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 117.9,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 118.06,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 118.31,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 118.52,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 118.8,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 119.04,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 119.89,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 120.04,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 120.8,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 121.05,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 121.76,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 122.03,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 122.94,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 123.18,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 123.4,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 123.62,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 123.88,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 124.11,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 124.36,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 124.6,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 124.87,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 125.09,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 125.32,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 125.59,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 125.81,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 126.3,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 126.81,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 127.26,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 127.78,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 128.23,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 129.41,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 129.43,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 129.61,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 129.84,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 130.12,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 130.36,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 130.6,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 130.85,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 131.07,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 131.62,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 131.81,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 132.08,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 132.28,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 132.57,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 132.78,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 133,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 133.26,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 133.49,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 133.71,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 133.95,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 134.2,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 134.76,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 134.96,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 135.43,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 135.69,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 135.91,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 136.15,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 136.39,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 136.85,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 137.35,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 137.6,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 137.82,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 138.02,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 138.28,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 138.52,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 138.77,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 139.05,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 139.21,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 139.52,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 139.78,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 140,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 140.22,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 140.49,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 140.7,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 140.97,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 141.24,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 141.48,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 141.68,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 141.92,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 142.46,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 142.67,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 143.12,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 143.34,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 143.61,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 143.82,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 144.08,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 144.56,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 144.79,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 145.03,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 145.29,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 145.53,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 145.81,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 146.03,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 146.71,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 147.36,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 147.88,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 148.63,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 148.87,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 149.24,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 149.53,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 149.79,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 150.53,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 150.78,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 151.3,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 151.69,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 152.2,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 152.44,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 152.68,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 152.88,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 153.11,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 153.37,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 153.62,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 153.89,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 154.12,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 154.58,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 155.04,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 155.35,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 155.79,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 156.01,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 156.54,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 156.76,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 157.05,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 157.26,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 157.77,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 157.97,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 158.48,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 158.71,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 159.02,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 159.22,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 159.45,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 159.9,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 160.36,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 160.78,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 161.3,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 162.15,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 162.38,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 162.52,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 165,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 167.98,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 168.32,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 168.81,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 169.28,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 169.76,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 170.73,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 170.98,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 171.26,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 171.53,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 171.9,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 172.31,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 172.67,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 173.06,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 176.11,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 176.7,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 177.2,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 177.44,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 177.71,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 178.15,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 178.37,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 178.65,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 178.89,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 179.14,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 179.35,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 179.6,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 180.05,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 180.31,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 180.55,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 180.78,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 181,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 181.22,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 181.47,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 181.97,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 182.22,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 182.69,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 182.92,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 183.18,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 183.4,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 183.9,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 184.36,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 184.58,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 184.85,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 185.11,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 185.37,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 185.65,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 185.87,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 186.1,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 186.3,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 186.58,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 186.82,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 187.03,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 187.3,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 187.77,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 187.98,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 188.06,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 188.9,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 189.64,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 190.12,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 190.68,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 190.89,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 191.14,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 191.57,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 192.06,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 192.55,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 192.79,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 193.04,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 193.52,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 193.74,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 193.98,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 194.24,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 194.5,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 194.74,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 194.96,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 195.42,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 195.65,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 195.89,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 196.12,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 196.33,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 196.62,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 196.8,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 197.34,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 197.58,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 198.25,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 198.48,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 198.75,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 199.27,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 199.75,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 199.98,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 200.21,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 200.46,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 200.7,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 200.95,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 201.21,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 201.46,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 201.71,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 201.92,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 202.18,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 202.4,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 202.67,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 202.91,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 203.12,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 203.36,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 203.56,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 203.8,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 203.98,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 204.18,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 204.73,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 204.98,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 205.23,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 205.49,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 205.73,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 205.94,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 206.14,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 206.41,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 206.64,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 206.91,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 207.12,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 207.31,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 209.95,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 210.18,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 210.45,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 210.75,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 211.04,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 211.25,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 211.52,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 211.78,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 212.03,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 212.25,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 212.48,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 212.69,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 212.95,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 213.19,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 213.46,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 213.7,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 213.93,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 214.17,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 214.45,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 214.66,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 215.1,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 215.32,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 215.52,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 215.76,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 215.98,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 216.3,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 216.51,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 216.78,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 217.01,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 217.52,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 218.03,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 218.26,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 218.51,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 218.76,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 218.97,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 219.22,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 219.43,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 219.66,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 219.91,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 220.19,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 220.39,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 220.68,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 220.91,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 221.11,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 221.33,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 221.57,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 221.79,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 222.07,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 222.34,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 222.55,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 222.77,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 222.99,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 223.26,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 223.75,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 223.97,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 224.24,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 224.48,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 224.71,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 225.23,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 225.41,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 225.65,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 225.93,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 226.15,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 226.42,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 226.66,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 227.34,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 228,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 228.5,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 229.22,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 229.46,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 229.86,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 230.14,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 230.44,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 231.14,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 231.39,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 231.92,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 232.32,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 232.81,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 233.1,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 233.34,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 233.57,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 233.83,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 234.04,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 234.26,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 234.55,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 234.77,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 235.25,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 235.64,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 235.94,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 236.13,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 236.4,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 236.7,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 237.21,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 237.44,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 237.68,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 237.91,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 238.5,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 238.71,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 239.18,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 239.4,
+    "lane": 0,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 239.63,
+    "lane": 3,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 239.89,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 240.08,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 240.31,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 240.53,
+    "lane": 1,
+    "type": "short",
+    "hit": false
+  },
+  {
+    "time": 241.47,
+    "lane": 2,
+    "type": "short",
+    "hit": false
+  }
+];
+
+        let beatmap = [];
+        let hitEffects = []; 
+
+        function showNotification(message) {
+            notificationToast.innerText = message;
+            notificationToast.style.opacity = '1';
+            setTimeout(() => {
+                notificationToast.style.opacity = '0';
+            }, 3000);
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            bottomY = canvas.height * 0.85; 
+            
+            if (window.innerWidth < 768) {
+                topWidth = window.innerWidth * 0.55;
+                bottomWidth = window.innerWidth * 0.92;
+            } else {
+                topWidth = 140;
+                bottomWidth = 750;
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function formatTime(seconds) {
+            if (isNaN(seconds) || seconds < 0) return "00:00";
+            let m = Math.floor(seconds / 60);
+            let s = Math.floor(seconds % 60);
+            let ms = Math.floor((seconds % 1) * 100);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+        }
+
+        volumeSlider.addEventListener('input', (e) => {
+            let vol = parseFloat(e.target.value);
+            video.volume = vol;
+            volumeText.innerText = `${Math.round(vol * 100)}%`;
+        });
+
+        function loadBeatmap() {
+            // Using a unique key for this song
+            let customSaved = localStorage.getItem('stay_at_your_house_custom_beatmap');
+            if (customSaved) {
+                try {
+                    let parsed = JSON.parse(customSaved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        beatmap = parsed;
+                        beatmap.sort((a, b) => a.time - b.time);
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Custom beatmap load error:", e);
+                }
+            }
+            beatmap = JSON.parse(JSON.stringify(defaultCustomBeatmap));
+            beatmap.sort((a, b) => a.time - b.time);
+        }
+        loadBeatmap();
+
+        function getPerspectiveMetrics(p) {
+            const depthCurve = Math.pow(p, 2.5); 
+            const y = topY + (bottomY - topY) * depthCurve;
+            const width = topWidth + (bottomWidth - topWidth) * depthCurve;
+            const laneWidth = width / 4;
+            const startX = (canvas.width / 2) - (width / 2);
+            return { y, laneWidth, startX, width };
+        }
+
+        function updateHealth(amount) {
+            currentHealth += amount;
+            if (currentHealth > maxHealth) currentHealth = maxHealth;
+            let percent = (currentHealth / maxHealth) * 100;
+            if (percent < 0) percent = 0;
+            
+            healthBar.style.width = percent + '%';
+            if (percent > 50) {
+                healthBar.style.background = '#00ff00';
+                healthBar.style.boxShadow = '0 0 10px #00ff00';
+            } else if (percent > 20) {
+                healthBar.style.background = '#ffaa00';
+                healthBar.style.boxShadow = '0 0 10px #ffaa00';
+            } else {
+                healthBar.style.background = '#ff0044';
+                healthBar.style.boxShadow = '0 0 10px #ff0044';
+            }
+
+            if (currentHealth <= 0 && isPlaying) {
+                triggerGameOver("GAME OVER", "체력이 모두 소진되었습니다.");
+            }
+        }
+
+        function triggerGameOver(title, message) {
+            isPlaying = false;
+            isPaused = false;
+            video.pause();
+            lobbyScreen.style.display = 'flex';
+            pauseScreen.style.display = 'none';
+            editorScreen.style.display = 'none';
+            document.querySelector('#lobby-screen h1').innerText = title;
+            document.querySelector('#lobby-screen h1').className = title === "CLEARED!" ? "text-6xl font-black mb-2 neon-text tracking-widest" : "text-6xl font-black mb-2 neon-text-pink tracking-widest";
+            document.querySelector('#lobby-screen p').innerText = message || `PERFECT: ${stats.perfect} | MISS: ${stats.miss}`;
+            startBtn.innerText = "RETRY";
+        }
+
+        function togglePause() {
+            if (!isPlaying) return;
+            
+            if (!isPaused) {
+                isPaused = true;
+                video.pause();
+                pauseScreen.style.display = 'flex';
+            } else {
+                isPaused = false;
+                pauseScreen.style.display = 'none';
+                editorScreen.style.display = 'none';
+                video.play().catch(e => console.log(e));
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function returnToLobby() {
+            window.location.href = 'index.html';
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Escape') {
+                if (editorScreen.style.display === 'flex') {
+                    editorScreen.style.display = 'none';
+                    if (isRecording) {
+                        isRecording = false;
+                        video.pause();
+                    }
+                    if (isPlaying && !isRecording) pauseScreen.style.display = 'flex';
+                    return;
+                }
+                if (isPlaying) {
+                    togglePause();
+                }
+                return;
+            }
+
+            const lane = keys.indexOf(e.code);
+            if (lane !== -1) {
+                if (isRecording) {
+                    let recordTime = video.currentTime || 0;
+                    recordedNotes.push({
+                        time: Math.round(recordTime * 100) / 100,
+                        lane: lane,
+                        type: 'short',
+                        hit: false
+                    });
+                    editorNoteCount.innerText = recordedNotes.length;
+                    beatmapJsonTextarea.value = JSON.stringify(recordedNotes, null, 2);
+                    triggerHitEffect(lane);
+                    return;
+                }
+
+                if (!isPlaying || isPaused || editorScreen.style.display === 'flex') return;
+                if (!keyState[lane]) {
+                    keyState[lane] = true;
+                    handleHit(lane);
+                    triggerHitEffect(lane);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (isRecording) return;
+            if (!isPlaying || isPaused || editorScreen.style.display === 'flex') return;
+            const lane = keys.indexOf(e.code);
+            if (lane !== -1) {
+                keyState[lane] = false;
+                handleRelease(lane);
+            }
+        });
+
+        const activeTouches = {};
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (isRecording) return;
+            if (!isPlaying || isPaused || editorScreen.style.display === 'flex') return;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                let touch = e.changedTouches[i];
+                let lane = Math.floor((touch.clientX / window.innerWidth) * 4);
+                if (lane >= 0 && lane <= 3 && !keyState[lane]) {
+                    keyState[lane] = true;
+                    activeTouches[touch.identifier] = lane;
+                    handleHit(lane);
+                    triggerHitEffect(lane);
+                }
+            }
+        }, {passive: false});
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (isRecording) return;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                let touch = e.changedTouches[i];
+                let lane = activeTouches[touch.identifier];
+                if (lane !== undefined) {
+                    keyState[lane] = false;
+                    handleRelease(lane);
+                    delete activeTouches[touch.identifier];
+                }
+            }
+        }, {passive: false});
+
+        function handleHit(lane) {
+            const currentTime = video.currentTime;
+            let closestNote = null;
+            let minAbsDiff = Infinity;
+
+            for (let i = 0; i < beatmap.length; i++) {
+                let note = beatmap[i];
+                if (note.lane === lane && !note.hit) {
+                    let diff = note.time - currentTime;
+                    if (note.type === 'long' && note.active) continue;
+
+                    if (Math.abs(diff) < minAbsDiff && Math.abs(diff) < hitWindowMiss) {
+                        minAbsDiff = Math.abs(diff);
+                        closestNote = note;
+                    }
+                }
+            }
+
+            if (closestNote) {
+                if (minAbsDiff <= hitWindowPerfect) {
+                    showJudgement('PERFECT', 'perfect');
+                    stats.perfect++;
+                    combo++;
+                    updateHealth(2);
+                    processHit(closestNote);
+                } else if (minAbsDiff <= hitWindowGreat) {
+                    showJudgement('GREAT', 'great');
+                    stats.great++;
+                    combo++;
+                    updateHealth(0.5);
+                    processHit(closestNote);
+                } else if (minAbsDiff <= hitWindowMiss) {
+                    showJudgement('GOOD', 'good');
+                    stats.good++;
+                    combo = 0;
+                    updateHealth(-3);
+                    closestNote.hit = true;
+                }
+                updateStatsUI();
+            }
+        }
+
+        function processHit(note) {
+            if (note.type === 'short') note.hit = true;
+            else if (note.type === 'long') note.active = true;
+        }
+
+        function handleRelease(lane) {
+            const currentTime = video.currentTime;
+            for (let i = 0; i < beatmap.length; i++) {
+                let note = beatmap[i];
+                if (note.lane === lane && note.type === 'long' && note.active && !note.hit) {
+                    note.active = false;
+                    let endTime = note.time + (note.duration || 1.5);
+                    let absDiff = Math.abs(endTime - currentTime);
+
+                    if (absDiff <= 0.85) {
+                        showJudgement('PERFECT', 'perfect');
+                        stats.perfect++;
+                        combo++;
+                        updateHealth(3);
+                        note.hit = true;
+                    } else if (absDiff <= 1.2) {
+                        showJudgement('GREAT', 'great');
+                        stats.great++;
+                        combo++;
+                        updateHealth(1);
+                        note.hit = true;
+                    } else if (absDiff <= 1.6) {
+                        showJudgement('GOOD', 'good');
+                        stats.good++;
+                        combo = 0;
+                        updateHealth(-1);
+                        note.hit = true;
+                    } else {
+                        showJudgement('MISS', 'miss');
+                        stats.miss++;
+                        combo = 0;
+                        updateHealth(-6);
+                        note.hit = true;
+                    }
+                    updateStatsUI();
+                    break;
+                }
+            }
+        }
+
+        let judgeTimeout;
+        function showJudgement(text, className) {
+            judgeText.innerText = text;
+            judgeText.className = className;
+            judgeText.style.opacity = '1';
+            judgeText.style.transform = 'translate(-50%, -50%) scale(1.15)';
+            
+            comboText.innerText = combo > 3 ? `${combo} COMBO` : '';
+            comboText.style.opacity = combo > 3 ? '1' : '0';
+
+            clearTimeout(judgeTimeout);
+            setTimeout(() => {
+                judgeText.style.transform = 'translate(-50%, -50%) scale(1)';
+            }, 40);
+
+            judgeTimeout = setTimeout(() => {
+                judgeText.style.opacity = '0';
+                comboText.style.opacity = '0';
+            }, 450);
+        }
+
+        function updateStatsUI() {
+            statEls.perfect.innerText = stats.perfect;
+            statEls.great.innerText = stats.great;
+            statEls.good.innerText = stats.good;
+            statEls.miss.innerText = stats.miss;
+        }
+
+        function triggerHitEffect(lane) {
+            hitEffects.push({ lane: lane, time: performance.now(), color: laneColors[lane] });
+        }
+
+        function gameLoop() {
+            if (!isPlaying || isPaused || editorScreen.style.display === 'flex') return;
+
+            const currentTime = video.currentTime;
+            const duration = video.duration || 153;
+            const remainingTime = Math.max(0, duration - currentTime);
+            
+            timeDisplay.innerText = `남은 시간: ${formatTime(remainingTime)} / 전체: ${formatTime(duration)}`;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(5, 5, 16, 0.15)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawHighway();
+
+            for (let i = 0; i < beatmap.length; i++) {
+                let note = beatmap[i];
+                if (!note.hit) {
+                    if (note.type === 'short' && currentTime > note.time + hitWindowMiss) {
+                        note.hit = true;
+                        combo = 0;
+                        showJudgement('MISS', 'miss');
+                        stats.miss++;
+                        updateHealth(-10);
+                        updateStatsUI();
+                    } else if (note.type === 'long') {
+                        if (!note.active && currentTime > note.time + hitWindowMiss) {
+                             note.hit = true;
+                             combo = 0;
+                             showJudgement('MISS', 'miss');
+                             stats.miss++;
+                             updateHealth(-10);
+                             updateStatsUI();
+                        }
+                        let endTime = note.time + (note.duration || 1.5);
+                        if (note.active && currentTime > endTime + 1.25) {
+                            note.hit = true;
+                            note.active = false;
+                            showJudgement('PERFECT', 'perfect');
+                            stats.perfect++;
+                            combo++;
+                            updateHealth(2);
+                            updateStatsUI();
+                        }
+                    }
+                }
+            }
+
+            for (let i = beatmap.length - 1; i >= 0; i--) {
+                let note = beatmap[i];
+                if (note.hit) continue;
+
+                let timeUntilHit = note.time - currentTime;
+                let p = 1.0 - (timeUntilHit / noteSpeed);
+
+                if (note.type === 'short') {
+                    if (p > -0.2 && p < 1.2) {
+                        drawShortNote(note.lane, Math.max(0, p), laneColors[note.lane]);
+                    }
+                } else if (note.type === 'long') {
+                    let dur = note.duration || 1.5;
+                    let timeUntilEnd = (note.time + dur) - currentTime;
+                    let pEnd = 1.0 - (timeUntilEnd / noteSpeed);
+                    
+                    let startP = Math.max(0, p);
+                    let endP = Math.max(0, pEnd);
+
+                    if (note.active) startP = 1.0; 
+
+                    if (startP > 0 && endP < 1.2 && startP > endP) {
+                         drawLongNote(note.lane, startP, endP, laneColors[note.lane], note.active);
+                    }
+                }
+            }
+
+            drawHitEffects();
+            drawKeyPresses();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function recorderLoop() {
+            if (!isRecording) return;
+            let curTime = video.currentTime || 0;
+            recorderTime.innerText = formatTime(curTime);
+
+            if (video.ended) {
+                stopRecordBtn.click();
+                return;
+            }
+            requestAnimationFrame(recorderLoop);
+        }
+
+        function drawHighway() {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.lineWidth = 1.5;
+
+            for (let i = 0; i <= 4; i++) {
+                ctx.beginPath();
+                let topX = (canvas.width / 2) - (topWidth / 2) + (topWidth / 4) * i;
+                let botX = (canvas.width / 2) - (bottomWidth / 2) + (bottomWidth / 4) * i;
+                ctx.moveTo(topX, topY);
+                ctx.lineTo(botX, bottomY);
+                ctx.stroke();
+            }
+
+            ctx.beginPath();
+            let hitStartX = (canvas.width / 2) - (bottomWidth / 2);
+            ctx.moveTo(hitStartX, bottomY);
+            ctx.lineTo(hitStartX + bottomWidth, bottomY);
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.95)';
+            ctx.lineWidth = 6;
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = '#00ffff';
+            ctx.stroke();
+            ctx.shadowBlur = 0; 
+        }
+
+        function drawShortNote(lane, p, color) {
+            const m = getPerspectiveMetrics(p);
+            let x = m.startX + (m.laneWidth * lane);
+            let y = m.y;
+            let height = 8 + (35 * Math.pow(p, 2)); 
+            
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#ffffff'; 
+            ctx.lineWidth = 2 + (2 * p); 
+            ctx.shadowBlur = 20; 
+            ctx.shadowColor = color;
+            
+            ctx.beginPath();
+            ctx.moveTo(x + 2, y - height/2);
+            ctx.lineTo(x + m.laneWidth - 2, y - height/2);
+            ctx.lineTo(x + m.laneWidth + (p*10), y + height/2);
+            ctx.lineTo(x - (p*10), y + height/2);
+            ctx.closePath();
+            
+            ctx.fill();
+            ctx.shadowBlur = 0; 
+            ctx.stroke(); 
+        }
+
+        function drawLongNote(lane, pStart, pEnd, color, isActive) {
+            const mStart = getPerspectiveMetrics(pStart); 
+            const mEnd = getPerspectiveMetrics(pEnd);     
+            
+            let xStart = mStart.startX + (mStart.laneWidth * lane);
+            let xEnd = mEnd.startX + (mEnd.laneWidth * lane);
+            
+            ctx.fillStyle = color;
+            ctx.globalAlpha = isActive ? 0.95 : 0.45; 
+            
+            if (isActive) {
+                ctx.shadowBlur = 30;
+                ctx.shadowColor = color;
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(xStart + 5, mStart.y);
+            ctx.lineTo(xStart + mStart.laneWidth - 5, mStart.y);
+            ctx.lineTo(xEnd + mEnd.laneWidth - 2, mEnd.y);
+            ctx.lineTo(xEnd + 2, mEnd.y);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.globalAlpha = isActive ? 1.0 : 0.85;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = isActive ? 6 : 2;
+            ctx.beginPath();
+            ctx.moveTo(xStart + (mStart.laneWidth / 2), mStart.y);
+            ctx.lineTo(xEnd + (mEnd.laneWidth / 2), mEnd.y);
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1.0;
+            
+            ctx.strokeStyle = color; 
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(xStart + 5, mStart.y);
+            ctx.lineTo(xEnd + 2, mEnd.y);
+            ctx.moveTo(xStart + mStart.laneWidth - 5, mStart.y);
+            ctx.lineTo(xEnd + mEnd.laneWidth - 2, mEnd.y);
+            ctx.stroke();
+        }
+
+        function drawKeyPresses() {
+            const m = getPerspectiveMetrics(1.0); 
+            for (let i = 0; i < 4; i++) {
+                if (keyState[i]) {
+                    let x = m.startX + (m.laneWidth * i);
+                    let grad = ctx.createLinearGradient(0, bottomY, 0, bottomY - 160);
+                    grad.addColorStop(0, laneColors[i]);
+                    grad.addColorStop(1, 'rgba(0,0,0,0)');
+                    
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.moveTo(x, bottomY);
+                    ctx.lineTo(x + m.laneWidth, bottomY);
+                    ctx.lineTo(x + m.laneWidth - 20, bottomY - 160);
+                    ctx.lineTo(x + 20, bottomY - 160);
+                    ctx.fill();
+                }
+            }
+        }
+
+        function drawHitEffects() {
+            const now = performance.now();
+            const m = getPerspectiveMetrics(1.0);
+            
+            for (let i = hitEffects.length - 1; i >= 0; i--) {
+                let effect = hitEffects[i];
+                let age = now - effect.time;
+                
+                if (age > 280) { 
+                    hitEffects.splice(i, 1);
+                    continue;
+                }
+
+                let progress = age / 280;
+                let x = m.startX + (m.laneWidth * effect.lane) + (m.laneWidth / 2);
+                let radius = 18 + (progress * 55);
+                
+                ctx.beginPath();
+                ctx.arc(x, bottomY, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = effect.color;
+                ctx.lineWidth = 5 * (1 - progress);
+                ctx.globalAlpha = 1 - progress;
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        openEditorBtn.addEventListener('click', () => {
+            pauseScreen.style.display = 'none';
+            editorScreen.style.display = 'flex';
+            let saved = localStorage.getItem('stay_at_your_house_custom_beatmap');
+            if (saved) {
+                try {
+                    let parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) recordedNotes = parsed;
+                } catch(e) {}
+            } else {
+                recordedNotes = JSON.parse(JSON.stringify(defaultCustomBeatmap));
+            }
+            editorNoteCount.innerText = recordedNotes.length;
+            beatmapJsonTextarea.value = JSON.stringify(recordedNotes, null, 2);
+            recorderStatus.innerText = "상태: 대기 중 (Ready)";
+            startRecordBtn.style.display = 'inline-block';
+            stopRecordBtn.style.display = 'none';
+        });
+
+        closeEditorBtn.addEventListener('click', () => {
+            editorScreen.style.display = 'none';
+            if (isRecording) {
+                isRecording = false;
+                video.pause();
+            }
+            if (isPaused) pauseScreen.style.display = 'flex';
+        });
+
+        startRecordBtn.addEventListener('click', () => {
+            recordedNotes = [];
+            video.muted = false;
+            video.volume = parseFloat(volumeSlider.value);
+            video.currentTime = 0;
+            
+            video.play().then(() => {
+                isRecording = true;
+                startRecordBtn.style.display = 'none';
+                stopRecordBtn.style.display = 'inline-block';
+                recorderStatus.innerText = "상태: 🔴 녹화 중! (음악에 맞춰 D, F, J, K를 누르세요)";
+                requestAnimationFrame(recorderLoop);
+            }).catch(e => {
+                console.error("비디오 재생 오류:", e);
+                showNotification("비디오 재생을 시작할 수 없습니다. 파일을 확인해주세요.");
+            });
+        });
+
+        stopRecordBtn.addEventListener('click', () => {
+            isRecording = false;
+            video.pause();
+            recordedNotes.sort((a, b) => a.time - b.time);
+            editorNoteCount.innerText = recordedNotes.length;
+            beatmapJsonTextarea.value = JSON.stringify(recordedNotes, null, 2);
+            recorderStatus.innerText = `상태: 녹화 완료! 총 ${recordedNotes.length}개의 타일이 기록되었습니다.`;
+            startRecordBtn.style.display = 'inline-block';
+            stopRecordBtn.style.display = 'none';
+        });
+
+        copyJsonBtn.addEventListener('click', () => {
+            beatmapJsonTextarea.select();
+            document.execCommand('copy');
+            showNotification("타일 JSON 데이터가 클립보드에 복사되었습니다!");
+        });
+
+        importJsonBtn.addEventListener('click', () => {
+            try {
+                let parsed = JSON.parse(beatmapJsonTextarea.value);
+                if (Array.isArray(parsed)) {
+                    recordedNotes = parsed;
+                    editorNoteCount.innerText = recordedNotes.length;
+                    showNotification(`성공적으로 ${recordedNotes.length}개의 타일 데이터를 불러왔습니다!`);
+                } else {
+                    showNotification("올바른 배열 형식의 JSON이 아닙니다.");
+                }
+            } catch (e) {
+                showNotification("JSON 파싱 오류: 올바른 JSON 형식을 입력해주세요.");
+            }
+        });
+
+        saveBeatmapBtn.addEventListener('click', () => {
+            try {
+                let parsed = JSON.parse(beatmapJsonTextarea.value);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    recordedNotes = parsed;
+                }
+            } catch (e) {}
+
+            if (recordedNotes.length === 0) {
+                showNotification("저장할 녹화된 타일이 없습니다! 먼저 녹화를 진행하거나 JSON을 입력해 주세요.");
+                return;
+            }
+            recordedNotes.sort((a, b) => a.time - b.time);
+            localStorage.setItem('stay_at_your_house_custom_beatmap', JSON.stringify(recordedNotes));
+            beatmap = [...recordedNotes];
+            beatmap.forEach(n => { n.hit = false; n.active = false; });
+            showNotification(`총 ${beatmap.length}개의 타일이 저장되었습니다!`);
+            editorScreen.style.display = 'none';
+            lobbyScreen.style.display = 'flex';
+        });
+
+        resetBeatmapBtn.addEventListener('click', () => {
+            // Replaced default confirm with a direct reset to avoid blocking alerts
+            localStorage.removeItem('stay_at_your_house_custom_beatmap');
+            loadBeatmap();
+            recordedNotes = JSON.parse(JSON.stringify(defaultCustomBeatmap));
+            editorNoteCount.innerText = beatmap.length;
+            beatmapJsonTextarea.value = JSON.stringify(beatmap, null, 2);
+            showNotification("기본 악보로 초기화되었습니다.");
+        });
+
+        startBtn.addEventListener('click', () => {
+            video.muted = true;
+            video.currentTime = 0;
+            
+            let playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    video.muted = false;
+                    video.volume = parseFloat(volumeSlider.value);
+                    lobbyScreen.style.display = 'none';
+                    isPlaying = true;
+                    isPaused = false;
+
+                    stats = { perfect: 0, great: 0, good: 0, miss: 0 };
+                    combo = 0;
+                    currentHealth = maxHealth;
+                    updateHealth(0);
+                    updateStatsUI();
+                    beatmap.forEach(n => { n.hit = false; n.active = false; });
+
+                    requestAnimationFrame(gameLoop);
+                }).catch(error => {
+                    console.error("비디오 재생 실패:", error);
+                    lobbyScreen.style.display = 'none';
+                    isPlaying = true;
+                    isPaused = false;
+                    requestAnimationFrame(gameLoop);
+                });
+            }
+        });
+
+        resumeBtn.addEventListener('click', () => {
+            togglePause();
+        });
+
+        quitBtn.addEventListener('click', () => {
+            returnToLobby();
+        });
+
+        video.addEventListener('ended', () => {
+            if (isRecording) {
+                stopRecordBtn.click();
+            } else {
+                triggerGameOver("CLEARED!", `Clear! PERFECT:${stats.perfect} | MISS:${stats.miss}`);
+            }
+        });
+    </script>
+</body>
+</html>

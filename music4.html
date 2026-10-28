@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Rhythm Game - TETORIS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050510;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .neon-text {
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        .neon-text-pink {
+            text-shadow: 0 0 10px rgba(255, 0, 255, 0.8), 0 0 20px rgba(255, 0, 255, 0.5);
+        }
+
+        #bg-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1; 
+            opacity: 0.55;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 3;
+        }
+
+        #lobby-screen, #pause-screen, #editor-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 5, 16, 0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        #pause-screen, #editor-screen {
+            display: none;
+            background: rgba(5, 5, 16, 0.88);
+            backdrop-filter: blur(8px);
+        }
+
+        .btn-glowing {
+            background: transparent;
+            border: 2px solid #00ffff;
+            color: #00ffff;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.4) inset, 0 0 15px rgba(0, 255, 255, 0.4);
+        }
+
+        .btn-glowing:hover {
+            background: #00ffff;
+            color: #000;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.8) inset, 0 0 25px rgba(0, 255, 255, 0.8);
+        }
+
+        #judgement-display {
+            position: absolute;
+            top: 38%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: 900;
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        .perfect { color: #00ffff; text-shadow: 0 0 20px #00ffff; }
+        .great { color: #00ff00; text-shadow: 0 0 20px #00ff00; }
+        .good { color: #ffaa00; text-shadow: 0 0 20px #ffaa00; }
+        .miss { color: #ff0044; text-shadow: 0 0 20px #ff0044; }
+
+        #combo-display {
+            position: absolute;
+            top: 48%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: white;
+            text-shadow: 0 0 15px #fff;
+            opacity: 0;
+        }
+
+        #health-bar-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 350px;
+            height: 18px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #555;
+            border-radius: 9px;
+            overflow: hidden;
+            z-index: 5;
+        }
+        #health-bar {
+            width: 100%;
+            height: 100%;
+            background: #00ff00;
+            transition: width 0.15s ease, background-color 0.2s ease;
+            box-shadow: 0 0 10px #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <video id="bg-video" src="TETORIS.mp4" playsinline preload="auto" loop></video>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer" class="p-6">
+        <div id="health-bar-container">
+            <div id="health-bar"></div>
+        </div>
+
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center w-full max-w-4xl mx-auto gap-4 mt-6">
+            <div class="bg-black/70 p-4 rounded-xl border border-gray-700 text-sm font-mono font-bold space-y-1 w-full md:w-auto shadow-lg pointer-events-auto">
+                <div class="text-cyan-300">PERFECT: <span id="stat-perfect">0</span></div>
+                <div class="text-green-400">GREAT: <span id="stat-great">0</span></div>
+                <div class="text-orange-400">GOOD: <span id="stat-good">0</span></div>
+                <div class="text-red-500 mt-2 border-t border-gray-600 pt-1">MISS: <span id="stat-miss">0</span></div>
+                <div class="text-yellow-400 mt-2 border-t border-gray-600 pt-1 text-lg">SCORE: <span id="stat-score">0</span></div>
+            </div>
+            <div class="text-left md:text-right w-full md:w-auto bg-black/50 p-3 rounded-xl backdrop-blur-sm">
+                <div class="text-xl font-bold text-gray-200" id="ui-song-title">Song: TETORIS</div>
+                <div class="text-md text-cyan-300 font-mono mt-1 mb-1" id="time-display">남은 시간: 00:00 / 전체: 00:00</div>
+                <div class="text-sm text-gray-400">Keys: D, F, J, K (ESC: 일시정지 및 메뉴)</div>
+            </div>
+        </div>
+        
+        <div id="judgement-display">PERFECT</div>
+        <div id="combo-display">0</div>
+    </div>
+
+    <!-- 로비 및 결과 화면 -->
+    <div id="lobby-screen">
+        <h1 class="text-6xl font-black mb-2 neon-text tracking-widest">RHYTHM ARCADE</h1>
+        <p class="text-xl mb-8 text-gray-400">플레이할 곡을 선택하세요</p>
+
+        <!-- 랭킹 등록 폼 -->
+        <div id="ranking-form-container" style="display: none;" class="mb-8 flex flex-col items-center gap-4 bg-black/80 p-6 rounded-2xl border-2 border-yellow-500/50 shadow-[0_0_20px_rgba(255,255,0,0.2)]">
+            <div class="text-3xl font-black text-yellow-400 mb-2">Score: <span id="final-score">0</span></div>
+            <input type="text" id="nickname-input" placeholder="닉네임을 입력하세요" class="w-64 px-4 py-3 rounded-xl bg-gray-900 text-white border border-cyan-400 focus:outline-none focus:border-yellow-400 text-center text-lg font-bold">
+            <button id="submit-ranking-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl shadow-[0_0_15px_rgba(0,100,255,0.6)] transition-all">랭킹 등록하기</button>
+            <div id="ranking-status" class="text-sm font-bold text-cyan-300 mt-2 h-5"></div>
+        </div>
+
+        <div id="song-selection" class="flex flex-col gap-4 w-full max-w-md items-center mb-10">
+            <div id="song-card" class="bg-black/60 border-2 border-cyan-400/80 rounded-2xl p-5 w-full text-center shadow-[0_0_20px_rgba(0,255,255,0.3)] cursor-pointer transition-all hover:scale-105">
+                <div class="text-2xl font-bold text-cyan-300 mb-1" id="lobby-song-title">TETORIS</div>
+                <div class="text-sm text-gray-300">Custom Charted Beatmap</div>
+                <div class="text-xs text-cyan-400 mt-2 font-mono">Difficulty: EXPERT+</div>
+            </div>
+        </div>
+
+        <div class="flex flex-col items-center gap-2 mb-6">
+            <input type="text" id="global-nickname" placeholder="플레이어 닉네임 입력" class="w-72 px-4 py-3 rounded-xl bg-gray-900 text-white border-2 border-cyan-400 focus:outline-none focus:border-yellow-400 text-center text-xl font-bold shadow-[0_0_15px_rgba(0,255,255,0.3)]" autocomplete="off">
+            <div id="nickname-warning" class="text-red-500 font-bold text-sm h-5"></div>
+        </div>
+
+        <div class="flex gap-4">
+            <button id="start-btn" class="btn-glowing">GAME START</button>
+        </div>
+    </div>
+
+    <!-- 일시정지 화면 -->
+    <div id="pause-screen">
+        <h1 class="text-5xl font-black mb-6 neon-text tracking-widest">GAME PAUSED</h1>
+        
+        <div class="bg-black/80 border border-cyan-400/50 p-6 rounded-2xl mb-6 w-80 text-center shadow-[0_0_20px_rgba(0,255,255,0.2)]">
+            <div class="text-lg font-bold text-cyan-300 mb-3">음량 조절 (Volume)</div>
+            <div class="flex items-center justify-center gap-3">
+                <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="w-48 accent-cyan-400 cursor-pointer">
+                <span id="volume-text" class="text-sm font-mono text-cyan-300 w-12">100%</span>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-4 w-64">
+            <button id="resume-btn" class="btn-glowing">RESUME</button>
+            <button id="quit-btn" class="bg-transparent border-2 border-red-500 text-red-500 py-3 text-lg font-bold rounded-full hover:bg-red-500 hover:text-white transition-all shadow-[0_0_15px_rgba(255,0,68,0.4)]">SONG SELECT (로비로)</button>
+        </div>
+
+        <button id="open-editor-btn" class="absolute bottom-6 right-6 bg-purple-900/90 border border-purple-400 text-purple-200 px-4 py-2.5 rounded-xl text-xs font-mono shadow-[0_0_15px_rgba(168,85,247,0.6)] hover:bg-purple-700 transition-all">
+            🔴 실시간 타일 녹화기 (Editor)
+        </button>
+    </div>
+
+    <!-- 에디터 화면 -->
+    <div id="editor-screen">
+        <div class="w-full max-w-xl bg-black/95 border-2 border-purple-500 p-6 rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.5)] flex flex-col gap-3">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+                <h2 class="text-2xl font-black text-purple-300">🔴 실시간 타일 녹화 에디터 & 추출</h2>
+                <button id="close-editor-btn" class="text-gray-400 hover:text-white text-xl font-bold px-3 py-1">✕</button>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed">
+                [녹화 시작] 후 노래에 맞춰 <b>D, F, J, K</b>를 누르면 타일이 기록됩니다. 아래에서 JSON 코드를 복사하거나 붙여넣어 외부 파일과 연동할 수 있습니다!
+            </p>
+
+            <div class="bg-gray-900/90 p-3 rounded-xl border border-gray-800 flex flex-col gap-2 text-center">
+                <div class="text-sm font-mono text-cyan-300" id="recorder-status">상태: 대기 중 (Ready)</div>
+                <div class="text-2xl font-black font-mono text-yellow-400" id="recorder-time">00:00.00</div>
+                <div class="flex justify-center gap-3">
+                    <button id="start-record-btn" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-5 rounded-xl shadow-[0_0_15px_rgba(255,0,0,0.6)] transition-all">
+                        ⏺️ 녹화 시작
+                    </button>
+                    <button id="stop-record-btn" class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2 px-5 rounded-xl shadow-[0_0_15px_rgba(255,255,0,0.6)] transition-all" style="display:none;">
+                        ⏹️ 녹화 완료
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <div class="flex justify-between items-center text-xs font-mono text-gray-300">
+                    <span>타일 데이터 (JSON Export / Import)</span>
+                    <span>개수: <span id="editor-note-count" class="text-cyan-400 font-bold">0</span>개</span>
+                </div>
+                <!-- 닫는 태그가 누락되어 수정 완료 -->
+                <textarea id="beatmap-json-textarea" rows="4" class="w-full bg-gray-900 text-cyan-300 font-mono text-xs p-3 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none" placeholder="여기에 JSON 코드가 표시됩니다..."></textarea>
+                <div class="flex gap-2 mt-1">
+                    <button id="apply-json-btn" class="flex-1 bg-purple-800 hover:bg-purple-700 text-white font-bold py-1.5 rounded-lg shadow transition-all text-sm">
+                        📥 JSON 적용 (Import)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 캔버스 및 기본 변수 설정 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- 게임 상태 관리 ---
+        let isPlaying = false;
+        let isPaused = false;
+        let score = 0;
+        let combo = 0;
+        let stats = { perfect: 0, great: 0, good: 0, miss: 0 };
+        let health = 100;
+
+        // UI 요소
+        const lobbyScreen = document.getElementById('lobby-screen');
+        const pauseScreen = document.getElementById('pause-screen');
+        const editorScreen = document.getElementById('editor-screen');
+        const rankingFormContainer = document.getElementById('ranking-form-container');
+        
+        // 버튼
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('resume-btn').addEventListener('click', resumeGame);
+        document.getElementById('quit-btn').addEventListener('click', endGameAndShowLobby);
+        document.getElementById('open-editor-btn').addEventListener('click', () => { editorScreen.style.display = 'flex'; });
+        document.getElementById('close-editor-btn').addEventListener('click', () => { editorScreen.style.display = 'none'; });
+
+        // --- 랭킹 등록 기능 (구글 폼 연동) ---
+        document.getElementById('submit-ranking-btn').addEventListener('click', function() {
+            const nickname = document.getElementById('nickname-input').value.trim();
+            const currentScore = document.getElementById('final-score').innerText;
+            const statusMsg = document.getElementById('ranking-status');
+
+            if (!nickname) {
+                statusMsg.innerText = "닉네임을 입력해주세요!";
+                statusMsg.style.color = "red";
+                return;
+            }
+
+            statusMsg.innerText = "랭킹 서버로 전송 중...";
+            statusMsg.style.color = "yellow";
+
+            // 구글 폼 응답 URL 설정 (viewform -> formResponse)
+            const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSeZRWqxVjs5MM0qWN7yR07_ujScND7yGqsonMKJPd2ZJG_pQA/formResponse";
+            
+            // 폼 데이터 구성
+            const formData = new FormData();
+            formData.append("entry.1326412949", nickname);         // 1번: 닉네임
+            formData.append("entry.1582723431", currentScore);       // 2번: 점수
+            formData.append("entry.1967614191", "music4.html");      // 3번: 플레이 음악 정보 고정
+
+            // fetch API를 사용한 no-cors 전송
+            fetch(formUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: formData
+            }).then(() => {
+                statusMsg.innerText = "랭킹이 성공적으로 등록되었습니다!";
+                statusMsg.style.color = "#00ff00";
+                
+                // 전송 성공 시 약간의 지연 후 폼 숨기기
+                setTimeout(() => {
+                    rankingFormContainer.style.display = "none";
+                    document.getElementById('nickname-input').value = '';
+                    statusMsg.innerText = "";
+                }, 2500);
+            }).catch(error => {
+                console.error("랭킹 등록 실패:", error);
+                statusMsg.innerText = "랭킹 등록에 실패했습니다. 다시 시도해주세요.";
+                statusMsg.style.color = "red";
+            });
+        });
+
+        // --- 간단한 게임 로직 더미 (테스트용) ---
+        function startGame() {
+            const nickInput = document.getElementById('global-nickname').value.trim();
+            const warning = document.getElementById('nickname-warning');
+            
+            if (!nickInput) {
+                warning.innerText = "게임을 시작하려면 닉네임을 먼저 입력해주세요!";
+                return;
+            }
+            warning.innerText = "";
+            document.getElementById('nickname-input').value = nickInput; // 게임 종료 후 랭킹 폼에 닉네임 자동 세팅
+
+            lobbyScreen.style.display = 'none';
+            rankingFormContainer.style.display = 'none'; // 시작 시 폼 숨김
+            isPlaying = true;
+            isPaused = false;
+            score = 0;
+            combo = 0;
+            stats = { perfect: 0, great: 0, good: 0, miss: 0 };
+            health = 100;
+            updateStatsUI();
+            
+            document.getElementById('bg-video').play();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resumeGame() {
+            pauseScreen.style.display = 'none';
+            isPaused = false;
+            document.getElementById('bg-video').play();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function endGameAndShowLobby() {
+            isPlaying = false;
+            isPaused = false;
+            pauseScreen.style.display = 'none';
+            lobbyScreen.style.display = 'flex';
+            document.getElementById('bg-video').pause();
+            
+            // 랭킹 폼 표시 및 최종 점수 업데이트
+            document.getElementById('final-score').innerText = score;
+            rankingFormContainer.style.display = 'flex';
+        }
+
+        function updateStatsUI() {
+            document.getElementById('stat-perfect').innerText = stats.perfect;
+            document.getElementById('stat-great').innerText = stats.great;
+            document.getElementById('stat-good').innerText = stats.good;
+            document.getElementById('stat-miss').innerText = stats.miss;
+            document.getElementById('stat-score').innerText = score;
+            document.getElementById('combo-display').innerText = combo > 0 ? combo : '';
+            document.getElementById('health-bar').style.width = health + '%';
+        }
+
+        // 키보드 이벤트로 점수 증가 (테스트)
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isPlaying) {
+                isPaused = !isPaused;
+                if (isPaused) {
+                    pauseScreen.style.display = 'flex';
+                    document.getElementById('bg-video').pause();
+                } else {
+                    resumeGame();
+                }
+            }
+
+            if(isPlaying && !isPaused && ['d', 'f', 'j', 'k'].includes(e.key.toLowerCase())) {
+                // 키를 누를 때 랜덤하게 점수 상승 (테스트 로직)
+                const rand = Math.random();
+                if(rand > 0.4) {
+                    stats.perfect++;
+                    score += 100;
+                    combo++;
+                    showJudgement("PERFECT", "perfect");
+                } else if(rand > 0.1) {
+                    stats.great++;
+                    score += 80;
+                    combo++;
+                    showJudgement("GREAT", "great");
+                } else {
+                    stats.good++;
+                    score += 50;
+                    combo++;
+                    showJudgement("GOOD", "good");
+                }
+                updateStatsUI();
+            }
+        });
+
+        function showJudgement(text, className) {
+            const el = document.getElementById('judgement-display');
+            el.innerText = text;
+            el.className = className;
+            el.style.opacity = 1;
+            
+            const comboEl = document.getElementById('combo-display');
+            comboEl.style.opacity = 1;
+            
+            setTimeout(() => {
+                el.style.opacity = 0;
+                comboEl.style.opacity = 0;
+            }, 300);
+        }
+
+        function gameLoop() {
+            if (!isPlaying || isPaused) return;
+
+            // 배경 클리어
+            ctx.clearRect(0, 0, width, height);
+
+            // 간단한 레인 렌더링
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            const laneWidth = 100;
+            const startX = width / 2 - (laneWidth * 2);
+            
+            for(let i=0; i<4; i++) {
+                ctx.fillRect(startX + (i * laneWidth), 0, laneWidth - 2, height);
+            }
+            
+            // 판정선 렌더링
+            ctx.fillStyle = '#00ffff';
+            ctx.fillRect(startX, height * 0.8, laneWidth * 4, 5);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- 볼륨 제어 ---
+        const volSlider = document.getElementById('volume-slider');
+        const volText = document.getElementById('volume-text');
+        volSlider.addEventListener('input', (e) => {
+            const v = e.target.value;
+            volText.innerText = Math.round(v * 100) + '%';
+            document.getElementById('bg-video').volume = v;
+        });
+
+    </script>
+</body>
+</html>
